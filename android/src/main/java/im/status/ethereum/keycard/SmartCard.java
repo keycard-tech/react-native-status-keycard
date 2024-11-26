@@ -286,11 +286,11 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
 
         if (info.isInitializedCard()) {
             String instanceUID = Hex.toHexString(info.getInstanceUID());
-            Metadata m = Metadata.fromData(cmdSet.getData(KeycardCommandSet.STORE_DATA_P1_PUBLIC).checkOK().getData());
-            cardInfo.putString("card-name", m.getCardName());
+            String cardName = getCardNameOrDefault(cmdSet);
+            cardInfo.putString("card-name", cardName);
 
             Log.i(TAG, "Instance UID: " + instanceUID);
-            Log.i(TAG, "Card name: " + m.getCardName());
+            Log.i(TAG, "Card name: " + cardName);
             Log.i(TAG, "Key UID: " + Hex.toHexString(info.getKeyUID()));
             Log.i(TAG, "Secure channel public key: " + Hex.toHexString(info.getSecureChannelPubKey()));
             Log.i(TAG, "Application version: " + info.getAppVersionString());
@@ -681,8 +681,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     public String getCardName() throws IOException, APDUException {
         KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
         cmdSet.select().checkOK();
-        Metadata m = Metadata.fromData(cmdSet.getData(KeycardCommandSet.STORE_DATA_P1_PUBLIC).checkOK().getData());
-        return m.getCardName();
+        return getCardNameOrDefault(cmdSet);
     } 
 
     public void setCardName(final String pin, final String name) throws IOException, APDUException {
@@ -742,6 +741,17 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
         openSecureChannel(cmdSet);
 
         return cmdSet;
+    }
+
+    private String getCardNameOrDefault(KeycardCommandSet cmdSet) throws IOException, APDUException {
+        byte[] data = cmdSet.getData(KeycardCommandSet.STORE_DATA_P1_PUBLIC).checkOK().getData();
+
+        try {
+            Metadata m = Metadata.fromData(data);
+            return m.getCardName();
+        } catch(Exception e) {
+            return "";
+        }
     }
 
     private void openSecureChannel(KeycardCommandSet cmdSet) throws IOException, APDUException {
