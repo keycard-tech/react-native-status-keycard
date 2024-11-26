@@ -449,6 +449,35 @@ public class RNStatusKeycardModule extends ReactContextBaseJavaModule implements
     }
 
     @ReactMethod
+    public void getCardName(final Promise promise) {
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    promise.resolve(smartCard.getCardName());
+                } catch (IOException | APDUException e) {
+                    Log.d(TAG, e.getMessage());
+                    promise.reject(e);
+                }
+            }
+        }).start();
+    }
+
+    @ReactMethod
+    public void setCardName(final String pin, final String name, final Promise promise) {
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    smartCard.setCardName(pin, name);
+                    promise.resolve(true);
+                } catch (IOException | APDUException e) {
+                    Log.d(TAG, e.getMessage());
+                    promise.reject(e);
+                }
+            }
+        }).start();
+    }
+
+    @ReactMethod
     public void unpairAndDelete(final String pin, final Promise promise) {
         promise.reject("E_KEYCARD", "Not implemented (unused)");
     }

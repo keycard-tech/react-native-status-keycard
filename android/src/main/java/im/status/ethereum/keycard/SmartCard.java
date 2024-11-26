@@ -35,6 +35,7 @@ import im.status.keycard.android.NFCCardManager;
 import im.status.keycard.applet.ApplicationStatus;
 import im.status.keycard.applet.BIP32KeyPair;
 import im.status.keycard.applet.Mnemonic;
+import im.status.keycard.applet.Metadata;
 import im.status.keycard.applet.CashCommandSet;
 import im.status.keycard.applet.KeycardCommandSet;
 import im.status.keycard.applet.Pairing;
@@ -285,8 +286,11 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
 
         if (info.isInitializedCard()) {
             String instanceUID = Hex.toHexString(info.getInstanceUID());
+            Metadata m = Metadata.fromData(cmdSet.getData(KeycardCommandSet.STORE_DATA_P1_PUBLIC).checkOK().getData());
+            cardInfo.putString("card-name", m.getCardName());
 
             Log.i(TAG, "Instance UID: " + instanceUID);
+            Log.i(TAG, "Card name: " + m.getCardName());
             Log.i(TAG, "Key UID: " + Hex.toHexString(info.getKeyUID()));
             Log.i(TAG, "Secure channel public key: " + Hex.toHexString(info.getSecureChannelPubKey()));
             Log.i(TAG, "Application version: " + info.getAppVersionString());
@@ -437,6 +441,9 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
 
     public WritableMap importKeys(final String pin) throws IOException, APDUException {
         KeycardCommandSet cmdSet = authenticatedCommandSet(pin);
+        ApplicationInfo info = cmdSet.getApplicationInfo();
+
+        byte p2 = (info.getAppVersion() < 0x0310) ? KeycardCommandSet.EXPORT_KEY_P2_PUBLIC_ONLY : KeycardCommandSet.EXPORT_KEY_P2_EXTENDED_PUBLIC;
 
         byte[] tlvEncryption = cmdSet.exportKey(ENCRYPTION_PATH, false, false).checkOK().getData();
         BIP32KeyPair encryptionKeyPair = BIP32KeyPair.fromTLV(tlvEncryption);
@@ -444,24 +451,27 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
         byte[] tlvMaster = cmdSet.exportKey(MASTER_PATH, false, true).checkOK().getData();
         BIP32KeyPair masterPair = BIP32KeyPair.fromTLV(tlvMaster);
 
-        byte[] tlvRoot = cmdSet.exportKey(ROOT_PATH, false, true).checkOK().getData();
-        BIP32KeyPair keyPair = BIP32KeyPair.fromTLV(tlvRoot);
+        byte[] tlvRoot = cmdSet.exportKey(ROOT_PATH, false, p2).checkOK().getData();
+        BIP32KeyPair rootKeyPair = BIP32KeyPair.fromTLV(tlvRoot);
 
         byte[] tlvWhisper = cmdSet.exportKey(WHISPER_PATH, false, false).checkOK().getData();
         BIP32KeyPair whisperKeyPair = BIP32KeyPair.fromTLV(tlvWhisper);
 
-        byte[] tlvWallet = cmdSet.exportKey(WALLET_PATH, false, true).checkOK().getData();
-        BIP32KeyPair walletKeyPair = BIP32KeyPair.fromTLV(tlvWallet);
-
-        ApplicationInfo info = cmdSet.getApplicationInfo();
-
         WritableMap data = Arguments.createMap();
         data.putString("address", Hex.toHexString(masterPair.toEthereumAddress()));
         data.putString("public-key", Hex.toHexString(masterPair.getPublicKey()));
-        data.putString("wallet-root-address", Hex.toHexString(keyPair.toEthereumAddress()));
-        data.putString("wallet-root-public-key", Hex.toHexString(keyPair.getPublicKey()));
-        data.putString("wallet-address", Hex.toHexString(walletKeyPair.toEthereumAddress()));
-        data.putString("wallet-public-key", Hex.toHexString(walletKeyPair.getPublicKey()));
+        data.putString("wallet-root-address", Hex.toHexString(rootKeyPair.toEthereumAddress()));
+        data.putString("wallet-root-public-key", Hex.toHexString(rootKeyPair.getPublicKey()));
+        
+        if (rootKeyPair.isExtended()) {
+            data.putString("wallet-root-chain-code", Hex.toHexString(rootKeyPair.getChainCode()));
+        } else {
+            byte[] tlvWallet = cmdSet.exportKey(WALLET_PATH, false, true).checkOK().getData();
+            BIP32KeyPair walletKeyPair = BIP32KeyPair.fromTLV(tlvWallet);
+            data.putString("wallet-address", Hex.toHexString(walletKeyPair.toEthereumAddress()));
+            data.putString("wallet-public-key", Hex.toHexString(walletKeyPair.getPublicKey()));
+        }
+
         data.putString("whisper-address", Hex.toHexString(whisperKeyPair.toEthereumAddress()));
         data.putString("whisper-public-key", Hex.toHexString(whisperKeyPair.getPublicKey()));
         data.putString("whisper-private-key", Hex.toHexString(whisperKeyPair.getPrivateKey()));
@@ -474,6 +484,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
 
     public WritableMap generateAndLoadKey(final String mnemonic, final String pin) throws IOException, APDUException {
         KeycardCommandSet cmdSet = authenticatedCommandSet(pin);
+        byte p2 = (cmdSet.getApplicationInfo().getAppVersion() < 0x0310) ? KeycardCommandSet.EXPORT_KEY_P2_PUBLIC_ONLY : KeycardCommandSet.EXPORT_KEY_P2_EXTENDED_PUBLIC;
 
         byte[] seed = Mnemonic.toBinarySeed(mnemonic, "");
         BIP32KeyPair keyPair = BIP32KeyPair.fromBinarySeed(seed);
@@ -481,7 +492,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
         cmdSet.loadKey(keyPair).checkOK();
         log("keypair loaded to card");
 
-        byte[] tlvRoot = cmdSet.exportKey(ROOT_PATH, false, true).checkOK().getData();
+        byte[] tlvRoot = cmdSet.exportKey(ROOT_PATH, false, p2).checkOK().getData();
         Log.i(TAG, "Derived " + ROOT_PATH);
         BIP32KeyPair rootKeyPair = BIP32KeyPair.fromTLV(tlvRoot);
 
@@ -493,23 +504,28 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
         Log.i(TAG, "Derived " + ENCRYPTION_PATH);
         BIP32KeyPair encryptionKeyPair = BIP32KeyPair.fromTLV(tlvEncryption);
 
-        byte[] tlvWallet = cmdSet.exportKey(WALLET_PATH, false, true).checkOK().getData();
-        Log.i(TAG, "Derived " + WALLET_PATH);
-        BIP32KeyPair walletKeyPair = BIP32KeyPair.fromTLV(tlvWallet);
-
-        ApplicationInfo info = new ApplicationInfo(cmdSet.select().checkOK().getData());
-
         WritableMap data = Arguments.createMap();
         data.putString("address", Hex.toHexString(keyPair.toEthereumAddress()));
         data.putString("public-key", Hex.toHexString(keyPair.getPublicKey()));
         data.putString("wallet-root-address", Hex.toHexString(rootKeyPair.toEthereumAddress()));
         data.putString("wallet-root-public-key", Hex.toHexString(rootKeyPair.getPublicKey()));
-        data.putString("wallet-address", Hex.toHexString(walletKeyPair.toEthereumAddress()));
-        data.putString("wallet-public-key", Hex.toHexString(walletKeyPair.getPublicKey()));
+
+        if (rootKeyPair.isExtended()) {
+            data.putString("wallet-root-chain-code", Hex.toHexString(rootKeyPair.getChainCode()));
+        } else {
+            byte[] tlvWallet = cmdSet.exportKey(WALLET_PATH, false, true).checkOK().getData();
+            BIP32KeyPair walletKeyPair = BIP32KeyPair.fromTLV(tlvWallet);
+            data.putString("wallet-address", Hex.toHexString(walletKeyPair.toEthereumAddress()));
+            data.putString("wallet-public-key", Hex.toHexString(walletKeyPair.getPublicKey()));
+        }
+
         data.putString("whisper-address", Hex.toHexString(whisperKeyPair.toEthereumAddress()));
         data.putString("whisper-public-key", Hex.toHexString(whisperKeyPair.getPublicKey()));
         data.putString("whisper-private-key", Hex.toHexString(whisperKeyPair.getPrivateKey()));
         data.putString("encryption-public-key", Hex.toHexString(encryptionKeyPair.getPublicKey()));
+
+        ApplicationInfo info = new ApplicationInfo(cmdSet.select().checkOK().getData());
+
         data.putString("instance-uid", Hex.toHexString(info.getInstanceUID()));
         data.putString("key-uid", Hex.toHexString(info.getKeyUID()));
 
@@ -661,6 +677,20 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
 
         return sig;
     }
+
+    public String getCardName() throws IOException, APDUException {
+        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        cmdSet.select().checkOK();
+        Metadata m = Metadata.fromData(cmdSet.getData(KeycardCommandSet.STORE_DATA_P1_PUBLIC).checkOK().getData());
+        return m.getCardName();
+    } 
+
+    public void setCardName(final String pin, final String name) throws IOException, APDUException {
+        KeycardCommandSet cmdSet = authenticatedCommandSet(pin);
+
+        Metadata m = new Metadata(name);
+        cmdSet.storeData(m.toByteArray(), KeycardCommandSet.STORE_DATA_P1_PUBLIC).checkOK();
+    }    
 
     public WritableMap verifyCard(final String challenge) throws IOException, APDUException {
         KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
