@@ -297,7 +297,7 @@ class StatusKeycard: RCTEventEmitter {
               if type(of: error) is NSError.Type {
                 let nsError = error as NSError
                 errMsg = "\(nsError.domain):\(nsError.code)"
-                if nsError.code == 100 && nsError.domain == "NFCError" {
+                if (nsError.code == 100 || nsError.code == 102) && nsError.domain == "NFCError" {
                   self.sendEvent(withName: "keyCardOnDisconnected", body: nil)
                   self.keycardController?.restartPolling()
                   self.keycardController?.setAlert(self.nfcStartPrompt)
