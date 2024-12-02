@@ -79,11 +79,11 @@ class SmartCard {
         
       if rootKeyPair.isExtended {
         keys["wallet-root-chain-code"] = bytesToHex(rootKeyPair.chainCode!)
-      } else {
+      } //else { (for now we return both keys, because xpub support is not yet available)
         let walletKeyPair = try exportKey(cmdSet: cmdSet, path: .walletPath, makeCurrent: false, publicOnly: true)
         keys["wallet-address"] = bytesToHex(walletKeyPair.toEthereumAddress())
         keys["wallet-public-key"] = bytesToHex(walletKeyPair.publicKey)
-      }
+      //}
         
       let info = try ApplicationInfo(cmdSet.select().checkOK().data)
       keys["instance-uid"] = bytesToHex(info.instanceUID)
@@ -297,11 +297,11 @@ class SmartCard {
         
       if rootKeyPair.isExtended {
         keys["wallet-root-chain-code"] = bytesToHex(rootKeyPair.chainCode!)
-      } else {
+      } //else { (see note above)
         let walletKeyPair = try exportKey(cmdSet: cmdSet, path: .walletPath, makeCurrent: false, publicOnly: true)
         keys["wallet-address"] = bytesToHex(walletKeyPair.toEthereumAddress())
         keys["wallet-public-key"] = bytesToHex(walletKeyPair.publicKey)
-      }
+      //}
         
       resolve(keys)
     }

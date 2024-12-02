@@ -465,12 +465,12 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
         
         if (rootKeyPair.isExtended()) {
             data.putString("wallet-root-chain-code", Hex.toHexString(rootKeyPair.getChainCode()));
-        } else {
+        } //else { (for now we return both keys, because xpub support is not yet available)
             byte[] tlvWallet = cmdSet.exportKey(WALLET_PATH, false, true).checkOK().getData();
             BIP32KeyPair walletKeyPair = BIP32KeyPair.fromTLV(tlvWallet);
             data.putString("wallet-address", Hex.toHexString(walletKeyPair.toEthereumAddress()));
             data.putString("wallet-public-key", Hex.toHexString(walletKeyPair.getPublicKey()));
-        }
+        //}
 
         data.putString("whisper-address", Hex.toHexString(whisperKeyPair.toEthereumAddress()));
         data.putString("whisper-public-key", Hex.toHexString(whisperKeyPair.getPublicKey()));
@@ -512,12 +512,12 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
 
         if (rootKeyPair.isExtended()) {
             data.putString("wallet-root-chain-code", Hex.toHexString(rootKeyPair.getChainCode()));
-        } else {
+        } //else { (see note above)
             byte[] tlvWallet = cmdSet.exportKey(WALLET_PATH, false, true).checkOK().getData();
             BIP32KeyPair walletKeyPair = BIP32KeyPair.fromTLV(tlvWallet);
             data.putString("wallet-address", Hex.toHexString(walletKeyPair.toEthereumAddress()));
             data.putString("wallet-public-key", Hex.toHexString(walletKeyPair.getPublicKey()));
-        }
+        //}
 
         data.putString("whisper-address", Hex.toHexString(whisperKeyPair.toEthereumAddress()));
         data.putString("whisper-public-key", Hex.toHexString(whisperKeyPair.getPublicKey()));
