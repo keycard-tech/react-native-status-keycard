@@ -33,6 +33,8 @@ RCT_EXTERN_METHOD(unpair:(NSString *)pin resolve:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(delete:(RCTPromiseResolveBlock)resolve reject: (RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(removeKey:(NSString *)pin resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(removeKeyWithUnpair:(NSString *)pin resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getCardName:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(setCardName:(NSString *)pin name:(NSString *)name resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(unpairAndDelete:(NSString *)pin resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(startNFC:(NSString *)prompt resolve:(RCTPromiseResolveBlock)resolve reject: (RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(stopNFC:(NSString *)err resolve:(RCTPromiseResolveBlock)resolve reject: (RCTPromiseRejectBlock)reject)

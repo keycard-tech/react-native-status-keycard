@@ -179,6 +179,16 @@ class StatusKeycard: RCTEventEmitter {
     }
 
     @objc
+    func getCardName(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) -> Void {
+      keycardInvokation(reject) { [unowned self] channel in try self.smartCard.getCardName(channel: channel, resolve: resolve, reject: reject) }
+    }
+    
+    @objc
+    func setCardName(_ pin: String, name: String, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) -> Void {
+      keycardInvokation(reject) { [unowned self] channel in try self.smartCard.setCardName(channel: channel, pin: pin, name: name, resolve: resolve, reject: reject) }
+    }
+
+    @objc
     func unpairAndDelete(_ pin: String, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) -> Void {
       reject("E_KEYCARD", "Not implemented (unused)", nil)
     }
@@ -287,7 +297,7 @@ class StatusKeycard: RCTEventEmitter {
               if type(of: error) is NSError.Type {
                 let nsError = error as NSError
                 errMsg = "\(nsError.domain):\(nsError.code)"
-                if nsError.code == 100 && nsError.domain == "NFCError" {
+                if (nsError.code == 100 || nsError.code == 102) && nsError.domain == "NFCError" {
                   self.sendEvent(withName: "keyCardOnDisconnected", body: nil)
                   self.keycardController?.restartPolling()
                   self.keycardController?.setAlert(self.nfcStartPrompt)

@@ -54,33 +54,42 @@ class SmartCard {
 
     func generateAndLoadKey(channel: CardChannel, mnemonic: String, pin: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
       let cmdSet = try authenticatedCommandSet(channel: channel, pin: pin)
+      let exportOption = cmdSet.info!.appVersion < 0x0310 ? KeycardCommandSet.ExportOption.publicOnly : .extendedPublic
+        
       let seed = Mnemonic.toBinarySeed(mnemonicPhrase: mnemonic)
       let keyPair = BIP32KeyPair(fromSeed: seed)
 
       try cmdSet.loadKey(keyPair: keyPair).checkOK()
       os_log("keypair loaded to card")
 
-      let rootKeyPair = try exportKey(cmdSet: cmdSet, path: .rootPath, makeCurrent: false, publicOnly: true)
+      let rootKeyPair = try exportKey(cmdSet: cmdSet, path: .rootPath, makeCurrent: false, exportOption: exportOption)
       let whisperKeyPair = try exportKey(cmdSet: cmdSet, path: .whisperPath, makeCurrent: false, publicOnly: false)
       let encryptionKeyPair = try exportKey(cmdSet: cmdSet, path: .encryptionPath, makeCurrent: false, publicOnly: false)
-      let walletKeyPair = try exportKey(cmdSet: cmdSet, path: .walletPath, makeCurrent: false, publicOnly: true)
 
-      let info = try ApplicationInfo(cmdSet.select().checkOK().data)
-
-      resolve([
+      var keys = [
         "address": bytesToHex(keyPair.toEthereumAddress()),
         "public-key": bytesToHex(keyPair.publicKey),
         "wallet-root-address": bytesToHex(rootKeyPair.toEthereumAddress()),
         "wallet-root-public-key": bytesToHex(rootKeyPair.publicKey),
-        "wallet-address": bytesToHex(walletKeyPair.toEthereumAddress()),
-        "wallet-public-key": bytesToHex(walletKeyPair.publicKey),
         "whisper-address": bytesToHex(whisperKeyPair.toEthereumAddress()),
         "whisper-public-key": bytesToHex(whisperKeyPair.publicKey),
         "whisper-private-key": bytesToHex(whisperKeyPair.privateKey!),
-        "encryption-public-key": bytesToHex(encryptionKeyPair.publicKey),
-        "instance-uid": bytesToHex(info.instanceUID),
-        "key-uid": bytesToHex(info.keyUID)
-      ])
+        "encryption-public-key": bytesToHex(encryptionKeyPair.publicKey)
+      ]
+        
+      if rootKeyPair.isExtended {
+        keys["wallet-root-chain-code"] = bytesToHex(rootKeyPair.chainCode!)
+      } //else { (for now we return both keys, because xpub support is not yet available)
+        let walletKeyPair = try exportKey(cmdSet: cmdSet, path: .walletPath, makeCurrent: false, publicOnly: true)
+        keys["wallet-address"] = bytesToHex(walletKeyPair.toEthereumAddress())
+        keys["wallet-public-key"] = bytesToHex(walletKeyPair.publicKey)
+      //}
+        
+      let info = try ApplicationInfo(cmdSet.select().checkOK().data)
+      keys["instance-uid"] = bytesToHex(info.instanceUID)
+      keys["key-uid"] = bytesToHex(info.keyUID)
+    
+      resolve(keys)
     }
 
     func saveMnemonic(channel: CardChannel, mnemonic: String, pin: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
@@ -186,6 +195,9 @@ class SmartCard {
 
       if (info.initializedCard) {
         logAppInfo(info)
+        let cardName = try cardNameOrDefault(cmdSet: cmdSet)
+        cardInfo["card-name"] = cardName
+        
         var isPaired = false
         var isAuthentic = false
         let instanceUID = bytesToHex(info.instanceUID)
@@ -262,29 +274,36 @@ class SmartCard {
 
     func importKeys(channel: CardChannel, pin: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
       let cmdSet = try authenticatedCommandSet(channel: channel, pin: pin)
+      let info = cmdSet.info!
+      let exportOption = info.appVersion < 0x0310 ? KeycardCommandSet.ExportOption.publicOnly : .extendedPublic
 
       let encryptionKeyPair = try exportKey(cmdSet: cmdSet, path: .encryptionPath, makeCurrent: false, publicOnly: false)
       let masterPair = try exportKey(cmdSet: cmdSet, path: .masterPath, makeCurrent: false, publicOnly: true)
-      let rootKeyPair = try exportKey(cmdSet: cmdSet, path: .rootPath, makeCurrent: false, publicOnly: true)
+      let rootKeyPair = try exportKey(cmdSet: cmdSet, path: .rootPath, makeCurrent: false, exportOption: exportOption)
       let whisperKeyPair = try exportKey(cmdSet: cmdSet, path: .whisperPath, makeCurrent: false, publicOnly: false)
-      let walletKeyPair = try exportKey(cmdSet: cmdSet, path: .walletPath, makeCurrent: false, publicOnly: true)
 
-      let info = cmdSet.info!
-
-      resolve([
+      var keys = [
         "address": bytesToHex(masterPair.toEthereumAddress()),
         "public-key": bytesToHex(masterPair.publicKey),
         "wallet-root-address": bytesToHex(rootKeyPair.toEthereumAddress()),
         "wallet-root-public-key": bytesToHex(rootKeyPair.publicKey),
-        "wallet-address": bytesToHex(walletKeyPair.toEthereumAddress()),
-        "wallet-public-key": bytesToHex(walletKeyPair.publicKey),
         "whisper-address": bytesToHex(whisperKeyPair.toEthereumAddress()),
         "whisper-public-key": bytesToHex(whisperKeyPair.publicKey),
         "whisper-private-key": bytesToHex(whisperKeyPair.privateKey!),
         "encryption-public-key": bytesToHex(encryptionKeyPair.publicKey),
         "instance-uid": bytesToHex(info.instanceUID),
         "key-uid": bytesToHex(info.keyUID)
-      ])
+      ]
+        
+      if rootKeyPair.isExtended {
+        keys["wallet-root-chain-code"] = bytesToHex(rootKeyPair.chainCode!)
+      } //else { (see note above)
+        let walletKeyPair = try exportKey(cmdSet: cmdSet, path: .walletPath, makeCurrent: false, publicOnly: true)
+        keys["wallet-address"] = bytesToHex(walletKeyPair.toEthereumAddress())
+        keys["wallet-public-key"] = bytesToHex(walletKeyPair.publicKey)
+      //}
+        
+      resolve(keys)
     }
 
     func getKeys(channel: CardChannel, pin: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
@@ -404,6 +423,19 @@ class SmartCard {
 
       resolve(true)
     }
+    
+    func getCardName(channel: CardChannel, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
+      let cmdSet = KeycardCommandSet(cardChannel: channel)
+      try cmdSet.select().checkOK()
+      resolve(try cardNameOrDefault(cmdSet: cmdSet))
+    }
+    
+    func setCardName(channel: CardChannel, pin: String, name: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
+      let cmdSet = try authenticatedCommandSet(channel: channel, pin: pin)
+      let m = Metadata(name)
+      try cmdSet.storeData(data: m.serialize(), type: Keycard.StoreDataP1.publicData.rawValue).checkOK()
+      resolve(true)
+    }
 
     func randomPUK() -> String {
       return String(format: "%012ld", Int64.random(in: 0..<999999999999))
@@ -416,9 +448,26 @@ class SmartCard {
     }
 
     func exportKey(cmdSet: KeycardCommandSet, path: DerivationPath, makeCurrent: Bool, publicOnly: Bool) throws -> BIP32KeyPair {
-      let tlvRoot = try cmdSet.exportKey(path: path.rawValue, makeCurrent: makeCurrent, publicOnly: publicOnly).checkOK().data
+      let option = publicOnly ? KeycardCommandSet.ExportOption.publicOnly : KeycardCommandSet.ExportOption.privateAndPublic
+      return try exportKey(cmdSet: cmdSet, path: path, makeCurrent: makeCurrent, exportOption: option)
+    }
+    
+    func exportKey(cmdSet: KeycardCommandSet, path: DerivationPath, makeCurrent: Bool, exportOption: KeycardCommandSet.ExportOption) throws -> BIP32KeyPair {
+      let tlvRoot = try cmdSet.exportKey(path: path.rawValue, makeCurrent: makeCurrent, exportOption: exportOption).checkOK().data
       os_log("Derived %@", path.rawValue)
       return try BIP32KeyPair(fromTLV: tlvRoot)
+    }
+    
+    func cardNameOrDefault(cmdSet: KeycardCommandSet) throws -> String {
+      let data = try cmdSet.getData(type: Keycard.StoreDataP1.publicData.rawValue).checkOK().data
+      
+      if data.count > 0 {
+        do {
+          return try Metadata.fromData(data).cardName
+        } catch _ {}
+      }
+      
+      return ""
     }
 
     func setPairings(newPairings: NSDictionary, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void {
