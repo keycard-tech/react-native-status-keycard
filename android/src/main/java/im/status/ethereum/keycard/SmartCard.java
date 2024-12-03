@@ -233,6 +233,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
             cardInfo.putString("new-pairing", base64Pairing);
             WritableMap eventBody = Arguments.createMap();
             eventBody.putString("pairing", base64Pairing);
+            eventBody.putString("instanceUID", instanceUID);
             eventEmitter.emit("keyCardNewPairing", eventBody);
 
             openSecureChannel(cmdSet);

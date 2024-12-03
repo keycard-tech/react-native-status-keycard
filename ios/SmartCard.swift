@@ -513,9 +513,10 @@ class SmartCard {
       do {
         try cmdSet.autoPair(password: "KeycardDefaultPairing")
         let pairing = Data(cmdSet.pairing!.bytes).base64EncodedString()
-        self.pairings[bytesToHex(cmdSet.info!.instanceUID)] = pairing
+        let instanceUID = bytesToHex(cmdSet.info!.instanceUID)
+        self.pairings[instanceUID] = pairing
         cardInfo["new-pairing"] = pairing
-        eventEmitter.sendEvent(withName: "keyCardNewPairing", body: ["pairing": pairing])
+        eventEmitter.sendEvent(withName: "keyCardNewPairing", body: ["pairing": pairing, "instanceUID": instanceUID])
         try openSecureChannel(cmdSet: cmdSet)
         return true
       } catch let error as CardError {
