@@ -185,7 +185,7 @@ class SmartCard {
       return false
     }
 
-    func getApplicationInfo(channel: CardChannel, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
+    func getApplicationInfo(channel: CardChannel, eventEmitter: RCTEventEmitter, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) throws -> Void {
       let cmdSet = KeycardCommandSet(cardChannel: channel)
       let info = try ApplicationInfo(cmdSet.select().checkOK().data)
 
@@ -218,7 +218,7 @@ class SmartCard {
           isAuthentic = try verifyAuthenticity(cmdSet: cmdSet, instanceUID: instanceUID)
 
           if (isAuthentic) {
-            isPaired = try tryDefaultPairing(cmdSet: cmdSet, cardInfo: &cardInfo)
+            isPaired = try tryDefaultPairing(cmdSet: cmdSet, eventEmitter: eventEmitter, cardInfo: &cardInfo)
           }
         }
 
@@ -509,13 +509,13 @@ class SmartCard {
       return cmdSet
     }
 
-    func tryDefaultPairing(cmdSet: KeycardCommandSet, cardInfo: inout [String: Any]) throws -> Bool {
+    func tryDefaultPairing(cmdSet: KeycardCommandSet, eventEmitter: RCTEventEmitter, cardInfo: inout [String: Any]) throws -> Bool {
       do {
         try cmdSet.autoPair(password: "KeycardDefaultPairing")
         let pairing = Data(cmdSet.pairing!.bytes).base64EncodedString()
         self.pairings[bytesToHex(cmdSet.info!.instanceUID)] = pairing
         cardInfo["new-pairing"] = pairing
-
+        eventEmitter.sendEvent(withName: "keyCardNewPairing", body: ["pairing": pairing])
         try openSecureChannel(cmdSet: cmdSet)
         return true
       } catch let error as CardError {
