@@ -171,16 +171,8 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
         KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
         cmdSet.select().checkOK();
 
-        eventEmitter.emit("keycardInstallationProgress", 0.90);
-
         SmartCardSecrets s = SmartCardSecrets.generate(userPin);
-
-        eventEmitter.emit("keycardInstallationProgress", 0.93);
-
         cmdSet.init(s.getPin(), s.getPuk(), s.getPairingPassword()).checkOK();
-
-        eventEmitter.emit("keycardInstallationProgress", 1.0);
-
         return s;
     }
 
@@ -236,8 +228,13 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
             cmdSet.autoPair("KeycardDefaultPairing");
 
             Pairing pairing = cmdSet.getPairing();
-            pairings.put(instanceUID, pairing.toBase64());
-            cardInfo.putString("new-pairing", pairing.toBase64());
+            String base64Pairing = pairing.toBase64();
+            pairings.put(instanceUID, base64Pairing);
+            cardInfo.putString("new-pairing", base64Pairing);
+            WritableMap eventBody = Arguments.createMap();
+            eventBody.putString("pairing", base64Pairing);
+            eventBody.putString("instanceUID", instanceUID);
+            eventEmitter.emit("keyCardNewPairing", eventBody);
 
             openSecureChannel(cmdSet);
             return true;
