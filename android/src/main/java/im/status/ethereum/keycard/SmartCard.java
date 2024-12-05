@@ -50,11 +50,12 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     private CardChannel cardChannel;
     private EventEmitter eventEmitter;
     private static final String TAG = "SmartCard";
-    private Boolean started = false;
-    private Boolean listening = false;
+    private boolean started = false;
+    private volatile boolean listening = false;
     private HashMap<String, String> pairings;
     private String[] caPubKeys;
     private String skipVerificationUID;
+    private final Object lock = new Object();
 
     private static final String MASTER_PATH = "m";
     private static final String ROOT_PATH = "m/44'/60'/0'/0";
@@ -109,31 +110,39 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public void startNFC() {
-        this.listening = true;
-        if (this.cardChannel != null) {
-            eventEmitter.emit("keyCardOnConnected", null);
+        synchronized(lock) {
+            this.listening = true;
+            if (this.cardChannel != null) {
+                eventEmitter.emit("keyCardOnConnected", null);
+            }
         }
     }
 
     public void stopNFC() {
-        this.listening = false;
+        synchronized(lock) {
+            this.listening = false;
+        }
     }
 
     @Override
     public void onConnected(final CardChannel channel) {
-        this.cardChannel = channel;
+        synchronized(lock) {
+            this.cardChannel = channel;
 
-        if (this.listening) {
-            eventEmitter.emit("keyCardOnConnected", null);
+            if (this.listening) {
+                eventEmitter.emit("keyCardOnConnected", null);
+            }
         }
     }
 
     @Override
     public void onDisconnected() {
-        this.cardChannel = null;
-        
-        if (this.listening) {
-            eventEmitter.emit("keyCardOnDisconnected", null);
+        synchronized(lock) {
+            this.cardChannel = null;
+            
+            if (this.listening) {
+                eventEmitter.emit("keyCardOnDisconnected", null);
+            }
         }
     }
 
