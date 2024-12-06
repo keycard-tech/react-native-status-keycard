@@ -8,7 +8,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.nfc.NfcAdapter;
-import android.os.Bundle;
 import android.util.EventLog;
 import android.util.Log;
 
@@ -94,11 +93,9 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
         }
 
         if (this.nfcAdapter != null) {
-            Bundle options = new Bundle();
-            options.putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250);
             IntentFilter filter = new IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
             activity.registerReceiver(this, filter);
-            nfcAdapter.enableReaderMode(activity, this.cardManager, NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, options);
+            nfcAdapter.enableReaderMode(activity, this.cardManager, NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, null);
             return true;
         } else {
             log("not support in this device");
