@@ -62,6 +62,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     private static final String WALLET_PATH = "m/44'/60'/0'/0/0";
     private static final String WHISPER_PATH = "m/43'/60'/1581'/0'/0";
     private static final String ENCRYPTION_PATH = "m/43'/60'/1581'/1'/0";
+    private static final String TAG_LOST = "Tag was lost.";
     private static final int WORDS_LIST_SIZE = 2048;
 
     public SmartCard(ReactContext reactContext) {
@@ -177,7 +178,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public SmartCardSecrets init(final String userPin) throws IOException, APDUException, NoSuchAlgorithmException, InvalidKeySpecException {
-        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        KeycardCommandSet cmdSet = commandSet();
         cmdSet.select().checkOK();
 
         SmartCardSecrets s = SmartCardSecrets.generate(userPin);
@@ -186,7 +187,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public String pair(String pairingPassword) throws IOException, APDUException {
-        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        KeycardCommandSet cmdSet = commandSet();
         Log.i(TAG, "Applet selection successful");
 
         // First thing to do is selecting the applet on the card.
@@ -282,7 +283,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public WritableMap getApplicationInfo() throws IOException, APDUException {
-        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        KeycardCommandSet cmdSet = commandSet();
         ApplicationInfo info = new ApplicationInfo(cmdSet.select().checkOK().getData());
 
         Log.i(TAG, "Card initialized? " + info.isInitializedCard());
@@ -348,7 +349,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public WritableMap factoryResetPost() throws IOException, APDUException {
-        ApplicationInfo info = new ApplicationInfo(new KeycardCommandSet(this.cardChannel).select().checkOK().getData());
+        ApplicationInfo info = new ApplicationInfo(commandSet().select().checkOK().getData());
         Log.i(TAG, "Selecting the factory reset Keycard applet succeeded");
 
         WritableMap cardInfo = Arguments.createMap();
@@ -358,7 +359,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public WritableMap factoryResetFallback() throws IOException, APDUException {
-        GlobalPlatformCommandSet cmdSet = new GlobalPlatformCommandSet(this.cardChannel);
+        GlobalPlatformCommandSet cmdSet = gpCommandSet();
         cmdSet.select().checkOK();
         Log.i(TAG, "ISD selected");
 
@@ -375,7 +376,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public WritableMap factoryReset() throws IOException, APDUException {
-        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        KeycardCommandSet cmdSet = commandSet();
         APDUResponse resp = cmdSet.select();
 
         if (!resp.isOK()) {
@@ -661,7 +662,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public String signPinless(final String message) throws IOException, APDUException {
-        CashCommandSet cmdSet = new CashCommandSet(this.cardChannel);
+        CashCommandSet cmdSet = cashCommandSet();
         cmdSet.select().checkOK();
 
         byte[] hash = Hex.decode(message);
@@ -685,7 +686,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     public String getCardName() throws IOException, APDUException {
-        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        KeycardCommandSet cmdSet = commandSet();
         cmdSet.select().checkOK();
         return getCardNameOrDefault(cmdSet);
     } 
@@ -698,7 +699,7 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }    
 
     public WritableMap verifyCard(final String challenge) throws IOException, APDUException {
-        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        KeycardCommandSet cmdSet = commandSet();
         cmdSet.select().checkOK();
         byte[] rawChallenge = Hex.decode(challenge);
         byte[] data = cmdSet.identifyCard(rawChallenge).checkOK().getData();
@@ -742,11 +743,41 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     private KeycardCommandSet securedCommandSet() throws IOException, APDUException {
-        KeycardCommandSet cmdSet = new KeycardCommandSet(this.cardChannel);
+        KeycardCommandSet cmdSet = commandSet();
         cmdSet.select().checkOK();
         openSecureChannel(cmdSet);
 
         return cmdSet;
+    }
+
+    private KeycardCommandSet commandSet() throws IOException {
+        synchronized(lock) {
+            if (this.cardChannel != null) {
+                return new KeycardCommandSet(this.cardChannel);
+            }
+        }
+
+        throw new IOException(TAG_LOST);
+    }
+
+    private CashCommandSet cashCommandSet() throws IOException {
+        synchronized(lock) {
+            if (this.cardChannel != null) {
+                return new CashCommandSet(this.cardChannel);
+            }
+        }
+
+        throw new IOException(TAG_LOST);
+    }
+
+    private GlobalPlatformCommandSet gpCommandSet() throws IOException {
+        synchronized(lock) {
+            if (this.cardChannel != null) {
+                return new GlobalPlatformCommandSet(this.cardChannel);
+            }
+        }
+
+        throw new IOException(TAG_LOST);
     }
 
     private String getCardNameOrDefault(KeycardCommandSet cmdSet) throws IOException, APDUException {
