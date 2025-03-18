@@ -7,7 +7,7 @@ import os.log
 class StatusKeycard: RCTEventEmitter {
     let smartCard = SmartCard()
     var cardChannel: CardChannel? = nil
-    var nfcStartPrompt: String = "Hold your iPhone near a Status Keycard."
+    var nfcStartPrompt: String = "Hold your iPhone close to a Keycard"
 
     private var _keycardController: Any? = nil
     
@@ -240,7 +240,7 @@ class StatusKeycard: RCTEventEmitter {
             }
           })
 
-          self.nfcStartPrompt = prompt.isEmpty ? "Hold your iPhone near a Status Keycard." : prompt
+          self.nfcStartPrompt = prompt.isEmpty ? nfcStartPrompt : prompt
           keycardController?.start(alertMessage: self.nfcStartPrompt)
           resolve(true)
         } else {
