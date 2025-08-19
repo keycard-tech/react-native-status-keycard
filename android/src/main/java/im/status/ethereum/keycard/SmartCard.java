@@ -781,6 +781,10 @@ public class SmartCard extends BroadcastReceiver implements CardListener {
     }
 
     private String getCardNameOrDefault(KeycardCommandSet cmdSet) throws IOException, APDUException {
+        if (cmdSet.getApplicationInfo().getAppVersion() < 0x0300) {
+            return "";
+        }
+
         byte[] data = cmdSet.getData(KeycardCommandSet.STORE_DATA_P1_PUBLIC).checkOK().getData();
 
         try {
