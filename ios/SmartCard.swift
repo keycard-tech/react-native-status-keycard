@@ -459,6 +459,10 @@ class SmartCard {
     }
     
     func cardNameOrDefault(cmdSet: KeycardCommandSet) throws -> String {
+      if cmdSet.info!.appVersion < 0x0300 {
+        return ""
+      }
+
       let data = try cmdSet.getData(type: Keycard.StoreDataP1.publicData.rawValue).checkOK().data
       
       if data.count > 0 {
